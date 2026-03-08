@@ -17,12 +17,9 @@ export default function TopicDetailPage() {
   const [topic, setTopic] = useState<any>(null)
   const [subject, setSubject] = useState<any>(null)
   const [questions, setQuestions] = useState<any[]>([])
-  const [quizResults, setQuizResults] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddQuestion, setShowAddQuestion] = useState(false)
   const [newQuestion, setNewQuestion] = useState({ text: '', answer: '' })
-  const [masteryScore, setMasteryScore] = useState(0)
-  const [practiceCount, setPracticeCount] = useState(0)
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -44,50 +41,25 @@ export default function TopicDetailPage() {
   }, [topicId, router])
 
   const loadData = async (supabase: any, id: string) => {
-    try {
-      const { data: topicData } = await supabase
-        .from('topics')
-        .select('*, subjects(*)')
-        .eq('id', id)
-        .single()
+    const { data: topicData } = await supabase
+      .from('topics')
+      .select('*, subjects(*)')
+      .eq('id', id)
+      .single()
 
-      if (topicData) {
-        setTopic(topicData)
-        setSubject(topicData.subjects)
-      }
-
-      const { data: questionsData } = await supabase
-        .from('questions')
-        .select('*')
-        .eq('topic_id', id)
-        .order('created_at', { ascending: false })
-
-      setQuestions(questionsData || [])
-
-      // Load quiz results for mastery calculation
-      const { data: quizResultsData } = await supabase
-        .from('quiz_results')
-        .select('*')
-        .eq('topic_id', id)
-        .order('completed_at', { ascending: false })
-
-      setQuizResults(quizResultsData || [])
-
-      // Calculate mastery score
-      if (quizResultsData && quizResultsData.length > 0) {
-        const avgScore = Math.round(
-          quizResultsData.reduce((sum, q) => sum + (q.score / q.total_questions) * 100, 0) /
-            quizResultsData.length
-        )
-        setMasteryScore(avgScore)
-        setPracticeCount(quizResultsData.length)
-      }
-
-      setLoading(false)
-    } catch (error) {
-      console.error('Error loading topic data:', error)
-      setLoading(false)
+    if (topicData) {
+      setTopic(topicData)
+      setSubject(topicData.subjects)
     }
+
+    const { data: questionsData } = await supabase
+      .from('questions')
+      .select('*')
+      .eq('topic_id', id)
+      .order('created_at', { ascending: false })
+
+    setQuestions(questionsData || [])
+    setLoading(false)
   }
 
   const handleAddQuestion = async () => {
@@ -143,36 +115,11 @@ export default function TopicDetailPage() {
               {subject?.name || 'Subject'}
             </p>
           </div>
-          <Link href={`/dashboard/quiz/${topicId}`}>
-            <Button className="gap-2">
-              <Play className="h-4 w-4" />
-              Start Quiz
-            </Button>
-          </Link>
+          <Button className="gap-2">
+            <Play className="h-4 w-4" />
+            Start Quiz
+          </Button>
         </div>
-
-        {/* Progress Stats */}
-        {(practiceCount > 0 || masteryScore > 0) && (
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <Card className="p-6">
-              <p className="text-sm text-muted-foreground mb-1">Mastery Score</p>
-              <p className="text-3xl font-bold text-foreground">{masteryScore}%</p>
-              <div className="bg-muted rounded-full h-2 mt-4 overflow-hidden">
-                <div
-                  className="bg-blue-600 h-full transition-all"
-                  style={{ width: `${masteryScore}%` }}
-                />
-              </div>
-            </Card>
-            <Card className="p-6">
-              <p className="text-sm text-muted-foreground mb-1">Practice Count</p>
-              <p className="text-3xl font-bold text-foreground">{practiceCount}</p>
-              <p className="text-xs text-muted-foreground mt-4">
-                {practiceCount === 1 ? 'quiz taken' : 'quizzes taken'}
-              </p>
-            </Card>
-          </div>
-        )}
 
         {/* Questions Section */}
         <div className="mb-8">
