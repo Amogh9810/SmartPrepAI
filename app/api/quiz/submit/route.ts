@@ -30,14 +30,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch questions for scoring
-    const { data: questions } = await supabase
+    const { data: questions, error: fetchError } = await supabase
       .from('questions')
       .select('id, answer_text')
       .eq('topic_id', topicId)
 
-    if (!questions) {
+    if (fetchError) {
+      console.error('Database error fetching questions:', fetchError)
       return NextResponse.json(
-        { error: 'Questions not found' },
+        { error: 'Failed to fetch questions', details: fetchError.message },
+        { status: 500 }
+      )
+    }
+
+    if (!questions || questions.length === 0) {
+      return NextResponse.json(
+        { error: 'No questions found for this topic' },
         { status: 404 }
       )
     }
@@ -66,7 +74,11 @@ export async function POST(request: NextRequest) {
       .select()
 
     if (error) {
-      throw error
+      console.error('Error inserting quiz result:', error)
+      return NextResponse.json(
+        { error: 'Failed to save quiz result', details: error.message },
+        { status: 500 }
+      )
     }
 
     const percentage = Math.round((correctAnswers / questions.length) * 100)

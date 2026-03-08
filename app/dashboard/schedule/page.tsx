@@ -54,8 +54,49 @@ export default function SchedulePage() {
   }
 
   const handleGenerateSchedule = async () => {
-    // This would call the Python backend to generate an optimized schedule
-    alert('Schedule generation will be implemented with the Python backend')
+    try {
+      setLoading(true)
+      const supabase = createClient()
+
+      // Get all topics
+      const { data: topics } = await supabase
+        .from('topics')
+        .select('id')
+
+      if (!topics || topics.length === 0) {
+        alert('No topics found. Please add topics first.')
+        setLoading(false)
+        return
+      }
+
+      // Call schedule generation API
+      const response = await fetch('/api/schedule/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topicIds: topics.map((t) => t.id),
+          startDate: new Date().toISOString().split('T')[0],
+          duration: 60,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        alert(`Error: ${data.error}. ${data.details || ''}`)
+        setLoading(false)
+        return
+      }
+
+      // Reload schedules
+      await loadSchedules(supabase)
+      alert('Schedule generated successfully!')
+    } catch (error) {
+      console.error('Error generating schedule:', error)
+      alert('Failed to generate schedule. Make sure the backend is running.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

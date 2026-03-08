@@ -26,16 +26,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch questions for this topic
-    const { data: questions } = await supabase
+    const { data: questions, error: fetchError } = await supabase
       .from('questions')
       .select('*')
       .eq('topic_id', topicId)
       .eq('difficulty', difficulty)
       .limit(numQuestions)
 
+    if (fetchError) {
+      console.error('Database error:', fetchError)
+      return NextResponse.json(
+        { error: 'Failed to fetch questions', details: fetchError.message },
+        { status: 500 }
+      )
+    }
+
     if (!questions || questions.length === 0) {
       return NextResponse.json(
-        { error: 'No questions found for this topic' },
+        { error: 'No questions found for this topic', details: `No ${difficulty} questions found` },
         { status: 404 }
       )
     }

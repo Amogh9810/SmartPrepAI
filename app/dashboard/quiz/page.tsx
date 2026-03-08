@@ -62,9 +62,7 @@ export default function QuizPage() {
   }
 
   const handleStartQuiz = async (topicId: string) => {
-    // In a real app, this would create a quiz session
-    // For now, just show a placeholder
-    alert('Quiz functionality will be implemented with the Python backend')
+    router.push(`/dashboard/quiz/${topicId}`)
   }
 
   return (

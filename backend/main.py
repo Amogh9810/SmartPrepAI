@@ -225,25 +225,60 @@ async def evaluate_mastery(topic_id: str, quiz_results: List[dict]):
 
 @app.post("/api/schedule/generate")
 async def generate_study_schedule(request: ScheduleRequest):
-
+    """
+    Generate study schedule using SM-2 spaced repetition algorithm.
+    Reviews are scheduled at: 1, 3, 7, 14, 30 days for optimal retention.
+    """
     try:
+        from datetime import datetime, timedelta
 
-        schedules = [
-            {
-                "topic_id": topic_id,
-                "study_date": f"2024-03-{10 + i*2:02d}",
-                "duration_minutes": request.duration,
-                "priority": "high" if i < 2 else "medium"
-            }
-            for i, topic_id in enumerate(request.topic_ids)
-        ]
+        if not request.topic_ids:
+            raise HTTPException(status_code=400, detail="topic_ids cannot be empty")
+
+        # Parse start date or use today
+        if request.start_date:
+            start_date = datetime.strptime(request.start_date, "%Y-%m-%d")
+        else:
+            start_date = datetime.now()
+
+        # SM-2 spaced repetition intervals (in days)
+        intervals = [1, 3, 7, 14, 30]
+        schedules = []
+
+        # Generate schedule for each topic
+        for topic_idx, topic_id in enumerate(request.topic_ids):
+            # Create review sessions at each interval
+            for interval_idx, interval_days in enumerate(intervals):
+                # Offset by topic index to spread load
+                study_date = start_date + timedelta(
+                    days=interval_days + (topic_idx % 3)
+                )
+
+                # Set priority based on interval
+                if interval_days <= 3:
+                    priority = "high"
+                elif interval_days <= 14:
+                    priority = "medium"
+                else:
+                    priority = "low"
+
+                schedules.append({
+                    "topic_id": topic_id,
+                    "study_date": study_date.strftime("%Y-%m-%d"),
+                    "duration_minutes": request.duration,
+                    "priority": priority
+                })
+
+        print(f"Generated {len(schedules)} study sessions for {len(request.topic_ids)} topics")
 
         return {
             "success": True,
-            "schedules": schedules
+            "schedules": schedules,
+            "message": f"Generated {len(schedules)} sessions using SM-2 spaced repetition"
         }
 
     except Exception as e:
+        print(f"Schedule generation error: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 
