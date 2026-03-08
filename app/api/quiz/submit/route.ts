@@ -11,33 +11,49 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized', details: 'User session not found' },
         { status: 401 }
       )
     }
 
+    const body = await request.json()
     const {
       topicId,
       answers,
       timeSpentSeconds,
-    } = await request.json()
+    } = body
 
-    if (!topicId || !answers) {
+    if (!topicId) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required field', details: 'topicId is required' },
+        { status: 400 }
+      )
+    }
+
+    if (!answers || !Array.isArray(answers)) {
+      return NextResponse.json(
+        { error: 'Invalid answers format', details: 'answers must be an array' },
         { status: 400 }
       )
     }
 
     // Fetch questions for scoring
-    const { data: questions } = await supabase
+    const { data: questions, error: questionsError } = await supabase
       .from('questions')
       .select('id, answer_text')
       .eq('topic_id', topicId)
 
-    if (!questions) {
+    if (questionsError) {
+      console.error('Database error fetching questions:', questionsError)
       return NextResponse.json(
-        { error: 'Questions not found' },
+        { error: 'Database error', details: questionsError.message },
+        { status: 500 }
+      )
+    }
+
+    if (!questions || questions.length === 0) {
+      return NextResponse.json(
+        { error: 'No questions found for this topic', details: 'Make sure questions are created for this topic' },
         { status: 404 }
       )
     }
@@ -61,12 +77,16 @@ export async function POST(request: NextRequest) {
         topic_id: topicId,
         score: correctAnswers,
         total_questions: questions.length,
-        time_spent_seconds: timeSpentSeconds,
+        time_spent_seconds: timeSpentSeconds || 0,
       })
       .select()
 
     if (error) {
-      throw error
+      console.error('Error storing quiz result:', error)
+      return NextResponse.json(
+        { error: 'Failed to save quiz result', details: error.message },
+        { status: 500 }
+      )
     }
 
     const percentage = Math.round((correctAnswers / questions.length) * 100)

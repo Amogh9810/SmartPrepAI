@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
 
   try {
 
-    const supabase = await createClient()
+    const supabase = createClient()
 
     const {
       data: { user },
@@ -28,20 +28,35 @@ export async function POST(request: NextRequest) {
     }
 
     // Call Python FastAPI backend
-    const response = await fetch("http://127.0.0.1:8000/api/schedule/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        topic_ids: topicIds,
-        start_date: startDate,
-        duration: duration || 60
-      }),
-    })
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
+    
+    let response;
+    try {
+      response = await fetch(`${backendUrl}/api/schedule/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          topic_ids: topicIds,
+          start_date: startDate,
+          duration: duration || 60
+        }),
+      })
+    } catch (error) {
+      console.error("Backend connection error:", error)
+      return NextResponse.json(
+        { 
+          error: "Backend service unavailable. Make sure the FastAPI backend is running.",
+          details: `Tried to connect to ${backendUrl}`
+        },
+        { status: 503 }
+      )
+    }
 
     if (!response.ok) {
-      throw new Error("Python backend schedule generation failed")
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(`Schedule generation failed: ${errorData.detail || response.statusText}`)
     }
 
     const aiData = await response.json()

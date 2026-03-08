@@ -62,9 +62,31 @@ export default function QuizPage() {
   }
 
   const handleStartQuiz = async (topicId: string) => {
-    // In a real app, this would create a quiz session
-    // For now, just show a placeholder
-    alert('Quiz functionality will be implemented with the Python backend')
+    try {
+      // Get available questions for this topic
+      const supabase = createClient()
+      const { data: questions, error } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('topic_id', topicId)
+        .limit(10)
+
+      if (error) {
+        alert('Error loading questions: ' + error.message)
+        return
+      }
+
+      if (!questions || questions.length === 0) {
+        alert('No questions available for this topic yet. Please add questions first.')
+        return
+      }
+
+      // Navigate to quiz interface with topic info
+      router.push(`/dashboard/quiz/${topicId}`)
+    } catch (error) {
+      console.error('Error starting quiz:', error)
+      alert('Failed to start quiz')
+    }
   }
 
   return (

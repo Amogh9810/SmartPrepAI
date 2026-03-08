@@ -47,17 +47,35 @@ export async function POST(request: NextRequest) {
     const pythonFormData = new FormData()
     pythonFormData.append("file", file)
 
-    const aiResponse = await fetch(
-      "http://127.0.0.1:8000/api/process-syllabus",
-      {
-        method: "POST",
-        body: pythonFormData,
-      }
-    )
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
+    
+    let aiResponse;
+    try {
+      aiResponse = await fetch(
+        `${backendUrl}/api/process-syllabus`,
+        {
+          method: "POST",
+          body: pythonFormData,
+        }
+      )
+    } catch (error) {
+      console.error("Backend connection error:", error)
+      return NextResponse.json(
+        { 
+          error: "Backend service unavailable. Make sure the FastAPI backend is running.",
+          details: `Tried to connect to ${backendUrl}`
+        },
+        { status: 503 }
+      )
+    }
 
     if (!aiResponse.ok) {
+      const errorData = await aiResponse.json().catch(() => ({}))
       return NextResponse.json(
-        { error: "AI processing failed" },
+        { 
+          error: "AI processing failed",
+          details: errorData.detail || "Unknown error from backend"
+        },
         { status: 500 }
       )
     }

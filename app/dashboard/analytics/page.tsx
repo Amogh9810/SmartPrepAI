@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { DashboardNav } from '@/components/dashboard/dashboard-nav'
 import { Card } from '@/components/ui/card'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { BarChart3, TrendingUp, Target, Clock } from 'lucide-react'
 
 export default function AnalyticsPage() {
@@ -33,57 +34,88 @@ export default function AnalyticsPage() {
   }, [router])
 
   const loadAnalytics = async (supabase: any) => {
-    // Get quiz results
-    const { data: quizzes } = await supabase
-      .from('quiz_results')
-      .select('score, total_questions, completed_at, topics(name)')
+    try {
+      // Get quiz results
+      const { data: quizzes } = await supabase
+        .from('quiz_results')
+        .select('score, total_questions, completed_at, topics(name)')
+        .order('completed_at', { ascending: false })
 
-    // Get study sessions
-    const { data: sessions } = await supabase
-      .from('study_sessions')
-      .select('duration_minutes, focus_score')
+      // Get study sessions
+      const { data: sessions } = await supabase
+        .from('study_sessions')
+        .select('duration_minutes, focus_score, created_at, topics(name)')
 
-    // Calculate stats
-    let totalScore = 0
-    let avgScore = 0
-    let bestScore = 0
-    let quizCount = 0
+      // Calculate stats
+      let totalScore = 0
+      let avgScore = 0
+      let bestScore = 0
+      let quizCount = 0
+      const topicScores: { [key: string]: number[] } = {}
 
-    if (quizzes && quizzes.length > 0) {
-      quizCount = quizzes.length
-      quizzes.forEach((quiz) => {
-        const scorePercent = (quiz.score / quiz.total_questions) * 100
-        totalScore += scorePercent
-        bestScore = Math.max(bestScore, scorePercent)
+      if (quizzes && quizzes.length > 0) {
+        quizCount = quizzes.length
+        quizzes.forEach((quiz) => {
+          const scorePercent = (quiz.score / quiz.total_questions) * 100
+          totalScore += scorePercent
+          bestScore = Math.max(bestScore, scorePercent)
+          
+          const topicName = quiz.topics?.name || 'Unknown'
+          if (!topicScores[topicName]) topicScores[topicName] = []
+          topicScores[topicName].push(scorePercent)
+        })
+        avgScore = Math.round(totalScore / quizCount)
+      }
+
+      let totalStudyMinutes = 0
+      let avgFocus = 0
+      const studyByTopic: { [key: string]: number } = {}
+      
+      if (sessions && sessions.length > 0) {
+        totalStudyMinutes = sessions.reduce(
+          (acc, s) => acc + (s.duration_minutes || 0),
+          0
+        )
+        const totalFocus = sessions.reduce(
+          (acc, s) => acc + (s.focus_score || 0),
+          0
+        )
+        avgFocus = Math.round(totalFocus / sessions.length)
+        
+        sessions.forEach((session) => {
+          const topicName = session.topics?.name || 'Unknown'
+          studyByTopic[topicName] = (studyByTopic[topicName] || 0) + (session.duration_minutes || 0)
+        })
+      }
+
+      // Prepare chart data
+      const topicChartData = Object.entries(topicScores).map(([name, scores]) => ({
+        name,
+        score: Math.round(scores.reduce((a, b) => a + b) / scores.length),
+      }))
+
+      const studyChartData = Object.entries(studyByTopic).map(([name, minutes]) => ({
+        name,
+        minutes,
+      }))
+
+      setStats({
+        quizCount,
+        avgScore,
+        bestScore,
+        totalStudyMinutes,
+        avgFocus,
+        quizzes: quizzes || [],
+        sessions: sessions || [],
+        topicChartData,
+        studyChartData,
       })
-      avgScore = Math.round(totalScore / quizCount)
+
+      setLoading(false)
+    } catch (error) {
+      console.error('Error loading analytics:', error)
+      setLoading(false)
     }
-
-    let totalStudyMinutes = 0
-    let avgFocus = 0
-    if (sessions && sessions.length > 0) {
-      totalStudyMinutes = sessions.reduce(
-        (acc, s) => acc + (s.duration_minutes || 0),
-        0
-      )
-      const totalFocus = sessions.reduce(
-        (acc, s) => acc + (s.focus_score || 0),
-        0
-      )
-      avgFocus = Math.round(totalFocus / sessions.length)
-    }
-
-    setStats({
-      quizCount,
-      avgScore,
-      bestScore,
-      totalStudyMinutes,
-      avgFocus,
-      quizzes: quizzes || [],
-      sessions: sessions || [],
-    })
-
-    setLoading(false)
   }
 
   if (loading) {
@@ -158,6 +190,43 @@ export default function AnalyticsPage() {
               <Clock className="h-10 w-10 text-amber-600 opacity-20" />
             </div>
           </Card>
+        </div>
+
+        {/* Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {stats?.topicChartData && stats.topicChartData.length > 0 && (
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold text-foreground mb-4">
+                Performance by Topic
+              </h2>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={stats.topicChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
+                  <YAxis domain={[0, 100]} />
+                  <Tooltip />
+                  <Bar dataKey="score" fill="#3b82f6" />
+                </BarChart>
+              </ResponsiveContainer>
+            </Card>
+          )}
+
+          {stats?.studyChartData && stats.studyChartData.length > 0 && (
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold text-foreground mb-4">
+                Study Time by Topic
+              </h2>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={stats.studyChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="minutes" fill="#10b981" />
+                </BarChart>
+              </ResponsiveContainer>
+            </Card>
+          )}
         </div>
 
         {/* Recent Quizzes */}
