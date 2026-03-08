@@ -45,10 +45,27 @@ export default function SchedulePage() {
 
   const handleMarkComplete = async (scheduleId: string) => {
     const supabase = createClient()
+    
+    // Find the schedule to get its details
+    const schedule = schedules.find((s) => s.id === scheduleId)
+    if (!schedule) return
+
+    // Mark schedule as completed
     await supabase
       .from('schedules')
       .update({ completed: true })
       .eq('id', scheduleId)
+
+    // Create a study session record to track the study hours
+    if (user) {
+      await supabase
+        .from('study_sessions')
+        .insert({
+          user_id: user.id,
+          topic_id: schedule.topic_id,
+          duration_minutes: schedule.duration_minutes || 60,
+        })
+    }
 
     loadSchedules(supabase)
   }
